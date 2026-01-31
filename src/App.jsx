@@ -229,12 +229,8 @@ export default function App() {
             {/* Navigation */}
             <nav className="fixed top-0 w-full z-50 py-4 bg-stone-950/80 backdrop-blur-md border-b border-stone-800">
                 <div className="max-w-6xl mx-auto px-6 flex justify-between items-center">
-                    <div className="flex items-center gap-4 cursor-pointer" onClick={() => { setView('menu'); setOrderSuccess(null); }}>
-                        <img src="/logo.png" className="w-10 h-10 object-contain" alt="Logo" />
-                        <div>
-                            <h1 className="text-lg font-black tracking-tight leading-none">PUBLIC KOFFIEE</h1>
-                            <p className="text-[7px] text-amber-500/60 uppercase tracking-[0.4em] mt-0.5">EST. 2026 • DARK ROAST</p>
-                        </div>
+                    <div className="flex items-center cursor-pointer" onClick={() => { setView('menu'); setOrderSuccess(null); }}>
+                        <img src="/logo-full.png" className="h-12 object-contain" alt="Public Koffiee" />
                     </div>
                 </div>
             </nav>
