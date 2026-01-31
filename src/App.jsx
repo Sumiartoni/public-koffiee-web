@@ -35,21 +35,45 @@ export default function App() {
     }, []);
 
     const fetchData = async () => {
+        console.log('🔄 Fetching data from API:', API_URL);
+
         try {
-            const [pRes, mRes, cRes] = await Promise.all([
-                axios.get(`${API_URL}/promos/public/active`),
-                axios.get(`${API_URL}/menu`),
-                axios.get(`${API_URL}/menu/categories/all`)
-            ]);
-            setMenu(mRes.data.items);
-            setCategories(cRes.data.categories);
+            // Fetch menu items
+            console.log('📋 Fetching menu...');
+            const mRes = await axios.get(`${API_URL}/menu`);
+            console.log('✅ Menu fetched:', mRes.data.items?.length, 'items');
+            setMenu(mRes.data.items || []);
+        } catch (err) {
+            console.error("❌ Error fetching menu:", err.message, err.response?.status);
+            setMenu([]);
+        }
+
+        try {
+            // Fetch categories
+            console.log('📁 Fetching categories...');
+            const cRes = await axios.get(`${API_URL}/menu/categories/all`);
+            console.log('✅ Categories fetched:', cRes.data.categories?.length, 'categories');
+            setCategories(cRes.data.categories || []);
+        } catch (err) {
+            console.error("❌ Error fetching categories:", err.message, err.response?.status);
+            setCategories([]);
+        }
+
+        try {
+            // Fetch promos
+            console.log('🎁 Fetching promos...');
+            const pRes = await axios.get(`${API_URL}/promos/public/active`);
+            console.log('✅ Promos fetched:', pRes.data);
             setActivePromos(pRes.data.promotions || []);
             setAvailableDiscounts(pRes.data.discounts || []);
-            setLoading(false);
         } catch (err) {
-            console.error("Backend offline, menggunakan mockup data");
-            setLoading(false);
+            console.error("❌ Error fetching promos:", err.message, err.response?.status);
+            setActivePromos([]);
+            setAvailableDiscounts([]);
         }
+
+        setLoading(false);
+        console.log('🏁 Data fetching complete');
     };
 
     const calculateSubtotal = () => cart.reduce((a, b) => a + (b.price * b.quantity), 0);
@@ -216,7 +240,14 @@ export default function App() {
             </nav>
 
             <main className="max-w-6xl mx-auto px-6 pt-28 pb-20">
-                {view === 'menu' && !orderSuccess && (
+                {loading && (
+                    <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
+                        <div className="w-16 h-16 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                        <p className="text-stone-500 font-bold">Memuat menu...</p>
+                    </div>
+                )}
+
+                {view === 'menu' && !orderSuccess && !loading && (
                     <div className="animate-premium">
                         <header className="mb-10">
                             <h2 className="text-4xl font-black italic tracking-tight mb-3">Freshly Brewed<br /><span className="text-amber-500">For You.</span></h2>
@@ -244,6 +275,13 @@ export default function App() {
 
                         {/* Menu Grid */}
                         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mt-4">
+                            {menu.length === 0 && (
+                                <div className="col-span-2 lg:col-span-3 text-center py-20">
+                                    <p className="text-6xl mb-4">☕</p>
+                                    <p className="text-stone-500 font-bold">Menu tidak tersedia</p>
+                                    <p className="text-stone-700 text-sm mt-2">Silakan cek koneksi atau hubungi admin</p>
+                                </div>
+                            )}
                             {menu.filter(i => selectedCat === 'all' || i.category_slug === selectedCat).map(item => (
                                 <motion.div
                                     layout key={item.id}
