@@ -3,7 +3,7 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, Coffee, MapPin, CheckCircle, Smartphone, X, Plus, Minus, Download, ChevronRight } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://illegal-jacinta-mkrrn-d8f0167d.koyeb.app/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://api.pkpos.my.id/api';
 
 
 export default function App() {

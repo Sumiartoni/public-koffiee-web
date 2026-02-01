@@ -1,7 +1,7 @@
 // API Configuration - VERCEL READY
 // Menggunakan environment variable untuk production
 // Menggunakan environment variable untuk production, fallback ke URL Koyeb jika env tidak terbaca
-export const API_URL = import.meta.env.VITE_API_URL || 'https://illegal-jacinta-mkrrn-d8f0167d.koyeb.app/api';
+export const API_URL = import.meta.env.VITE_API_URL || 'https://api.pkpos.my.id/api';
 
 // App Configuration
 export const SHOP_NAME = 'Public Koffiee';
