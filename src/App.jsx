@@ -307,9 +307,10 @@ export default function App() {
                                 <img
                                     src={
                                         orderSuccess.payment?.qris_image
-                                            ? (orderSuccess.payment.qris_image.startsWith('http')
-                                                ? orderSuccess.payment.qris_image
-                                                : `${API_URL.replace('/api', '')}${orderSuccess.payment.qris_image}`
+                                            ? (
+                                                orderSuccess.payment.qris_image.startsWith('data:') || orderSuccess.payment.qris_image.startsWith('http')
+                                                    ? orderSuccess.payment.qris_image
+                                                    : `${API_URL.replace('/api', '')}${orderSuccess.payment.qris_image}`
                                             )
                                             : orderSuccess.qris
                                     }
