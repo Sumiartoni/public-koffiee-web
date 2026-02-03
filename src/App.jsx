@@ -3,8 +3,8 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, Coffee, MapPin, CheckCircle, Smartphone, X, Plus, Minus, Download, ChevronRight } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://illegal-jacinta-mkrrn-d8f0167d.koyeb.app/api';
-const WHATSAPP_NUMBER = '628123456789'; // Ganti nomor Owner
+const API_URL = import.meta.env.VITE_API_URL || 'https://api.pkpos.my.id/api';
+
 
 export default function App() {
     const [view, setView] = useState('menu');
@@ -21,9 +21,8 @@ export default function App() {
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
     const [customerAddr, setCustomerAddr] = useState('');
-    // Restore Order Type Selection
-    const [orderType, setOrderType] = useState('pickup'); // pickup / delivery
     const [payMethod, setPayMethod] = useState('cash');
+    const [orderType, setOrderType] = useState('delivery'); // Default delivery agar input alamat muncul
     const [promoCode, setPromoCode] = useState('');
     const [activeDiscount, setActiveDiscount] = useState(null);
     const [discountError, setDiscountError] = useState('');
@@ -36,30 +35,68 @@ export default function App() {
     }, []);
 
     const fetchData = async () => {
+        console.log('🔄 Fetching data from API:', API_URL);
+
         try {
-            const [pRes, mRes, cRes] = await Promise.all([
-                axios.get(`${API_URL}/promos/public/active`),
-                axios.get(`${API_URL}/menu`),
-                axios.get(`${API_URL}/menu/categories/all`)
-            ]);
-            setMenu(mRes.data.items);
-            setCategories(cRes.data.categories);
+            // Fetch menu items
+            console.log('📋 Fetching menu...');
+            const mRes = await axios.get(`${API_URL}/menu`);
+            console.log('✅ Menu fetched:', mRes.data.items?.length, 'items');
+            setMenu(mRes.data.items || []);
+        } catch (err) {
+            console.error("❌ Error fetching menu:", err.message, err.response?.status);
+            setMenu([]);
+        }
+
+        try {
+            // Fetch categories
+            console.log('📁 Fetching categories...');
+            const cRes = await axios.get(`${API_URL}/menu/categories/all`);
+            console.log('✅ Categories fetched:', cRes.data.categories?.length, 'categories');
+            setCategories(cRes.data.categories || []);
+        } catch (err) {
+            console.error("❌ Error fetching categories:", err.message, err.response?.status);
+            setCategories([]);
+        }
+
+        try {
+            // Fetch promos
+            console.log('🎁 Fetching promos...');
+            const pRes = await axios.get(`${API_URL}/promos/public/active`);
+            console.log('✅ Promos fetched:', pRes.data);
             setActivePromos(pRes.data.promotions || []);
             setAvailableDiscounts(pRes.data.discounts || []);
-            setLoading(false);
         } catch (err) {
-            console.error("Backend offline, menggunakan mockup data");
-            setLoading(false);
+            console.error("❌ Error fetching promos:", err.message, err.response?.status);
+            setActivePromos([]);
+            setAvailableDiscounts([]);
         }
+
+        setLoading(false);
+        console.log('🏁 Data fetching complete');
     };
 
     const calculateSubtotal = () => cart.reduce((a, b) => a + (b.price * b.quantity), 0);
 
     const calculateDiscount = () => {
         if (!activeDiscount) return 0;
-        const sub = calculateSubtotal();
-        if (activeDiscount.type === 'nominal') return activeDiscount.value;
-        const disc = (sub * activeDiscount.value) / 100;
+
+        let applicableSubtotal = 0;
+        if (activeDiscount.category_id) {
+            // Only items in the specified category
+            applicableSubtotal = cart
+                .filter(item => Number(item.category_id) === Number(activeDiscount.category_id))
+                .reduce((a, b) => a + (b.price * b.quantity), 0);
+        } else {
+            // All items
+            applicableSubtotal = calculateSubtotal();
+        }
+
+        if (applicableSubtotal === 0) return 0;
+
+        if (activeDiscount.type === 'nominal') return Math.min(activeDiscount.value, applicableSubtotal);
+
+        const disc = (applicableSubtotal * activeDiscount.value) / 100;
         return activeDiscount.max_discount ? Math.min(disc, activeDiscount.max_discount) : disc;
     };
 
@@ -127,8 +164,34 @@ export default function App() {
         return filteredCart;
     };
 
+    const applyPromoCode = () => {
+        setDiscountError('');
+        if (!promoCode) {
+            setActiveDiscount(null);
+            return;
+        }
+
+        // Cari voucher yang kodenya cocok
+        const found = availableDiscounts.find(d => d.code && d.code.toUpperCase() === promoCode.toUpperCase());
+
+        if (found) {
+            const sub = calculateSubtotal();
+            if (sub < found.min_purchase) {
+                setDiscountError(`Minimal belanja Rp ${found.min_purchase.toLocaleString()} untuk voucher ini.`);
+                setActiveDiscount(null);
+            } else {
+                setActiveDiscount(found);
+                setDiscountError('');
+            }
+        } else {
+            setActiveDiscount(null);
+            setDiscountError('Kode voucher tidak valid atau sudah kadaluarsa.');
+        }
+    };
+
     const submitOrder = async () => {
-        if (!customerName || !customerAddr || !customerPhone) return alert("Mohon isi Nama, No. WhatsApp, dan Alamat pengiriman.");
+        if (!customerName || !customerPhone) return alert("Mohon isi Nama dan No. WhatsApp.");
+        if (orderType === 'delivery' && (!customerAddr || customerAddr.length < 5)) return alert("Mohon isi alamat pengiriman lengkap.");
 
         try {
             console.log("Submitting order...", { customerName, cart });
@@ -137,13 +200,16 @@ export default function App() {
                 customer_phone: customerPhone,
                 address: customerAddr,
                 payment_method: payMethod,
+                order_type: orderType, // Kirim 'delivery' atau 'pickup'
+                // Tapi kirim info delivery/pickup di notes atau field khusus jika backend support varian online
+                notes: `Tipper: ${orderType.toUpperCase()}`,
+                address: orderType === 'delivery' ? customerAddr : 'PICKUP AT STORE',
                 items: cart.map(i => ({
                     menu_item_id: i.id,
                     quantity: i.quantity,
                     price: i.price,
                     extras: i.selectedExtras ? JSON.stringify(i.selectedExtras) : null
                 })),
-                order_type: orderType,
                 discount: calculateDiscount()
             });
             console.log("Order submitted successfully:", resp.data);
@@ -163,18 +229,21 @@ export default function App() {
             {/* Navigation */}
             <nav className="fixed top-0 w-full z-50 py-4 bg-stone-950/80 backdrop-blur-md border-b border-stone-800">
                 <div className="max-w-6xl mx-auto px-6 flex justify-between items-center">
-                    <div className="flex items-center gap-4 cursor-pointer" onClick={() => { setView('menu'); setOrderSuccess(null); }}>
-                        <img src="/logo.png" className="w-10 h-10 object-contain" alt="Logo" />
-                        <div>
-                            <h1 className="text-lg font-black tracking-tight leading-none">PUBLIC KOFFIEE</h1>
-                            <p className="text-[7px] text-amber-500/60 uppercase tracking-[0.4em] mt-0.5">EST. 2026 • DARK ROAST</p>
-                        </div>
+                    <div className="flex items-center cursor-pointer" onClick={() => { setView('menu'); setOrderSuccess(null); }}>
+                        <img src="/logo-full.png" className="h-12 object-contain" alt="Public Koffiee" />
                     </div>
                 </div>
             </nav>
 
             <main className="max-w-6xl mx-auto px-6 pt-28 pb-20">
-                {view === 'menu' && !orderSuccess && (
+                {loading && (
+                    <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
+                        <div className="w-16 h-16 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                        <p className="text-stone-500 font-bold">Memuat menu...</p>
+                    </div>
+                )}
+
+                {view === 'menu' && !orderSuccess && !loading && (
                     <div className="animate-premium">
                         <header className="mb-10">
                             <h2 className="text-4xl font-black italic tracking-tight mb-3">Freshly Brewed<br /><span className="text-amber-500">For You.</span></h2>
@@ -202,6 +271,13 @@ export default function App() {
 
                         {/* Menu Grid */}
                         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mt-4">
+                            {menu.length === 0 && (
+                                <div className="col-span-2 lg:col-span-3 text-center py-20">
+                                    <p className="text-6xl mb-4">☕</p>
+                                    <p className="text-stone-500 font-bold">Menu tidak tersedia</p>
+                                    <p className="text-stone-700 text-sm mt-2">Silakan cek koneksi atau hubungi admin</p>
+                                </div>
+                            )}
                             {menu.filter(i => selectedCat === 'all' || i.category_slug === selectedCat).map(item => (
                                 <motion.div
                                     layout key={item.id}
@@ -266,37 +342,167 @@ export default function App() {
                                 </div>
                             </div>
 
-                            <h2 className="text-3xl font-black italic mb-8 uppercase">Shipping Infomation</h2>
-                            <div className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-2 px-1">Nama Customer</label>
-                                        <input type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="w-full bg-stone-950 border border-stone-800 p-4 rounded-2xl outline-none focus:border-amber-500" placeholder="John Doe" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-2 px-1">No. WhatsApp</label>
-                                        <input type="text" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="w-full bg-stone-950 border border-stone-800 p-4 rounded-2xl outline-none focus:border-amber-500" placeholder="0812XXX" />
-                                    </div>
+                            {/* Voucher Input */}
+                            <div className="mb-10">
+                                <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-2 px-1">Punya Kode Voucher?</label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={promoCode}
+                                        onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                                        className="flex-1 bg-stone-950 border border-stone-800 p-4 rounded-2xl outline-none focus:border-emerald-500 font-mono text-emerald-500 font-bold placeholder:text-stone-700 uppercase"
+                                        placeholder="KODEVOUCHER"
+                                    />
+                                    <button
+                                        onClick={applyPromoCode}
+                                        className="bg-emerald-600 hover:bg-emerald-500 py-4 px-6 rounded-2xl font-black text-stone-950 transition-all shadow-lg"
+                                    >
+                                        PAKAI
+                                    </button>
                                 </div>
-                                <div>
-                                    <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-4 px-1">Tipe Pesanan</label>
-                                    <div className="grid grid-cols-2 gap-4 mb-6">
-                                        <button onClick={() => setOrderType('pickup')} className={`p-4 rounded-2xl border-2 transition-all font-bold ${orderType === 'pickup' ? 'border-amber-600 bg-amber-600/10 text-amber-500' : 'border-stone-800 bg-stone-950 text-stone-500'}`}>🛍️ Ambil Sendiri</button>
-                                        <button onClick={() => setOrderType('delivery')} className={`p-4 rounded-2xl border-2 transition-all font-bold ${orderType === 'delivery' ? 'border-amber-600 bg-amber-600/10 text-amber-500' : 'border-stone-800 bg-stone-950 text-stone-500'}`}>🛵 Delivery</button>
-                                    </div>
-                                    <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-2 px-1">{orderType === 'delivery' ? 'Alamat Pengiriman' : 'Catatan Tambahan (Opsional)'}</label>
-                                    <textarea value={customerAddr} onChange={(e) => setCustomerAddr(e.target.value)} className="w-full bg-stone-950 border border-stone-800 p-4 rounded-2xl h-24 outline-none focus:border-amber-500" placeholder="Alamat pengiriman..."></textarea>
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-4 px-1">Metode Pembayaran</label>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <button onClick={() => setPayMethod('cash')} className={`p-4 rounded-2xl border-2 transition-all font-bold ${payMethod === 'cash' ? 'border-amber-600 bg-amber-600/10 text-amber-500' : 'border-stone-800 bg-stone-950'}`}>💵 Tunai (COD)</button>
-                                        <button onClick={() => setPayMethod('qris')} className={`p-4 rounded-2xl border-2 transition-all font-bold ${payMethod === 'qris' ? 'border-amber-600 bg-amber-600/10 text-amber-500' : 'border-stone-800 bg-stone-950'}`}>📱 QRIS (Otomatis)</button>
-                                    </div>
-                                </div>
-                                <button onClick={submitOrder} className="w-full bg-amber-600 text-stone-950 py-5 rounded-[2rem] font-black text-xl italic hover:bg-amber-500 transition-all shadow-xl shadow-amber-900/20 mt-6">PESAN SEKARANG</button>
-                                <button onClick={() => setView('menu')} className="w-full text-stone-500 font-bold py-2 hover:text-stone-300 uppercase text-[10px] tracking-widest">Kembali ke Menu</button>
+                                {discountError && <p className="text-[10px] text-red-500 font-bold px-1 mt-2">{discountError}</p>}
+                                {activeDiscount && activeDiscount.code && <p className="text-emerald-500 text-[9px] font-bold px-1 uppercase tracking-tight mt-2">Voucher "{activeDiscount.name}" Terpasang!</p>}
                             </div>
+
+                            {/* Available general discounts (No Code) */}
+                            {availableDiscounts.filter(d => !d.code || d.code === '').length > 0 && (
+                                <div className="mt-6 space-y-3">
+                                    <p className="text-[9px] font-black text-stone-600 uppercase tracking-widest px-1">Program Diskon Tersedia</p>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {availableDiscounts.filter(d => !d.code || d.code === '').map(disc => (
+                                            <button
+                                                key={disc.id}
+                                                onClick={() => {
+                                                    const sub = calculateSubtotal();
+                                                    if (sub < disc.min_purchase) {
+                                                        alert(`Minimal belanja Rp ${disc.min_purchase.toLocaleString()} untuk promo ini.`);
+                                                        return;
+                                                    }
+                                                    setActiveDiscount(disc);
+                                                    setPromoCode(''); // Clear manual code if selecting from list
+                                                }}
+                                                className={`w-full flex justify-between items-center p-4 rounded-2xl border transition-all ${activeDiscount?.id === disc.id ? 'bg-emerald-600 border-emerald-500 text-stone-950 font-black' : 'bg-stone-950 border-stone-800 text-stone-400 font-bold'}`}
+                                            >
+                                                <div className="text-left">
+                                                    <p className="text-[11px] uppercase italic">{disc.name}</p>
+                                                    <p className="text-[8px] opacity-60">MIN. Rp {disc.min_purchase.toLocaleString()}</p>
+                                                </div>
+                                                <span className="text-sm italic">
+                                                    {disc.type === 'percentage' ? `${disc.value}%` : `Rp ${disc.value.toLocaleString()}`}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <h2 className="text-3xl font-black italic mb-8 uppercase">Pengiriman</h2>
+
+                        {/* Toggle Order Type */}
+                        <div className="flex bg-stone-950 p-1 rounded-2xl border border-stone-800 mb-8">
+                            <button
+                                onClick={() => setOrderType('pickup')}
+                                className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${orderType === 'pickup' ? 'bg-amber-600 text-stone-950 shadow-lg' : 'bg-stone-800 text-stone-500'}`}
+                            >
+                                🛍️ Pickup
+                            </button>
+                            <button
+                                onClick={() => setOrderType('delivery')}
+                                className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${orderType === 'delivery' ? 'bg-amber-600 text-stone-950 shadow-lg' : 'bg-stone-800 text-stone-500'}`}
+                            >
+                                🛵 Delivery
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-2 px-1">Nama Customer</label>
+                                    <input type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="w-full bg-stone-950 border border-stone-800 p-4 rounded-2xl outline-none focus:border-amber-500" placeholder="John Doe" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-2 px-1">No. WhatsApp</label>
+                                    <input type="text" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="w-full bg-stone-950 border border-stone-800 p-4 rounded-2xl outline-none focus:border-amber-500" placeholder="0812XXX" />
+                                </div>
+                            </div>
+
+                            {orderType === 'delivery' ? (
+                                <div className="animate-premium">
+                                    <div className="flex justify-between items-center mb-2 px-1 gap-2">
+                                        <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block">Alamat Pengiriman</label>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    if (!navigator.geolocation) return alert('Browser tidak support GPS');
+                                                    setCustomerAddr('Mencari lokasi...');
+                                                    navigator.geolocation.getCurrentPosition(
+                                                        (pos) => {
+                                                            const link = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+                                                            setCustomerAddr(link);
+                                                        },
+                                                        (err) => {
+                                                            alert('Gagal mengambil lokasi GPS. Pastikan izin lokasi aktif.');
+                                                            setCustomerAddr('');
+                                                        }
+                                                    );
+                                                }}
+                                                className="text-[9px] font-black bg-stone-800 text-stone-300 px-2 py-1 rounded hover:bg-stone-700 flex items-center gap-1"
+                                            >
+                                                📍 Gunakan GPS Saya
+                                            </button>
+                                            {customerAddr.includes('http') && (
+                                                <button
+                                                    onClick={() => window.open(customerAddr, '_blank')}
+                                                    className="text-[9px] font-bold text-amber-500 hover:underline flex items-center gap-1"
+                                                >
+                                                    <MapPin size={10} /> Cek Link
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <textarea
+                                        value={customerAddr}
+                                        onChange={(e) => setCustomerAddr(e.target.value)}
+                                        className="w-full bg-stone-950 border border-stone-800 p-4 rounded-2xl h-24 outline-none focus:border-amber-500 mb-2 text-xs font-mono"
+                                        placeholder="Klik tombol GPS atau ketik alamat..."
+                                    ></textarea>
+                                    <p className="text-[10px] text-stone-600 pb-2">*Gunakan tombol GPS agar kurir mendapat titik akurat.</p>
+
+                                    {/* MAPS PREVIEW/EMBED */}
+                                    {customerAddr && (
+                                        <div className="w-full h-40 bg-stone-900 rounded-2xl overflow-hidden border border-stone-800 animate-premium mb-4">
+                                            <iframe
+                                                width="100%"
+                                                height="100%"
+                                                frameBorder="0"
+                                                style={{ border: 0 }}
+                                                src={`https://maps.google.com/maps?q=${encodeURIComponent(customerAddr.includes('http') ? customerAddr : customerAddr)}&output=embed`}
+                                                allowFullScreen
+                                            ></iframe>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="bg-stone-950 border border-stone-800 p-4 rounded-2xl flex gap-4 items-center animate-premium">
+                                    <div className="w-12 h-12 bg-stone-900 rounded-xl flex items-center justify-center text-amber-500"><MapPin /></div>
+                                    <div>
+                                        <p className="text-[10px] font-black text-stone-500 uppercase tracking-widest">Lokasi Pickup</p>
+                                        <p className="font-bold text-sm text-white">Public Koffiee Store</p>
+                                        <p className="text-xs text-stone-500">Jl. Kopi Premium No. 88, Jakarta Selatan</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-4 px-1">Metode Pembayaran</label>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <button onClick={() => setPayMethod('cash')} className={`p-4 rounded-2xl border-2 transition-all font-bold ${payMethod === 'cash' ? 'border-amber-600 bg-amber-600/10 text-amber-500' : 'border-stone-800 bg-stone-950'}`}>💵 {orderType === 'delivery' ? 'COD (Bayar Kurir)' : 'Bayar di Kasir'}</button>
+                                    <button onClick={() => setPayMethod('qris')} className={`p-4 rounded-2xl border-2 transition-all font-bold ${payMethod === 'qris' ? 'border-amber-600 bg-amber-600/10 text-amber-500' : 'border-stone-800 bg-stone-950'}`}>📱 QRIS (Otomatis)</button>
+                                </div>
+                            </div>
+                            <button onClick={submitOrder} className="w-full bg-amber-600 text-stone-950 py-5 rounded-[2rem] font-black text-xl italic hover:bg-amber-500 transition-all shadow-xl shadow-amber-900/20 mt-6">PESAN SEKARANG</button>
+                            <button onClick={() => setView('menu')} className="w-full text-stone-500 font-bold py-2 hover:text-stone-300 uppercase text-[10px] tracking-widest">Kembali ke Menu</button>
                         </div>
                     </div>
                 )}
@@ -329,16 +535,6 @@ export default function App() {
                         )}
 
                         <div className="space-y-4">
-                            <button
-                                onClick={() => {
-                                    const o = orderSuccess.order || orderSuccess;
-                                    const text = `Halo Admin!%0A*Konfirmasi Pesanan Baru*%0A---------------------------%0A*Order:* #${o.order_number}%0A*Customer:* ${o.customer_name}%0A*WA:* ${o.customer_phone}%0A*Total:* Rp ${(o.total || 0).toLocaleString()}%0A*Alamat:* ${o.customer_address || o.address}%0A%0A*Mohon diproses segera!*`;
-                                    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${text}`);
-                                }}
-                                className="w-full bg-[#25D366] text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 hover:brightness-110 shadow-lg"
-                            >
-                                📲 Konfirmasi via WhatsApp
-                            </button>
                             <button onClick={() => { setView('menu'); setOrderSuccess(null); }} className="w-full bg-stone-900 text-stone-400 font-bold py-4 rounded-2xl border border-stone-800 hover:bg-stone-800 transition-all">Selesai</button>
                         </div>
                     </div>
