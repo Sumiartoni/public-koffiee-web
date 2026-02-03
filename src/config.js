@@ -1,7 +1,7 @@
 // API Configuration - VERCEL READY
 // Menggunakan environment variable untuk production
 // Menggunakan environment variable untuk production, fallback ke URL Koyeb jika env tidak terbaca
-export const API_URL = import.meta.env.VITE_API_URL || 'https://api.pkpos.my.id/api';
+export const API_URL = import.meta.env.VITE_API_URL || 'https://illegal-jacinta-mkrrn-d8f0167d.koyeb.app/api';
 
 // App Configuration
 export const SHOP_NAME = 'Public Koffiee';
@@ -10,7 +10,7 @@ export const SHOP_DESCRIPTION = 'Experience the finest artisanal coffee crafted 
 export const SHOP_PHONE = '+62 21 1234 5678';
 export const SHOP_EMAIL = 'hello@publickoffiee.id';
 export const SHOP_ADDRESS = 'Jl. Kopi Premium No. 88, Jakarta Selatan';
-
+export const WHATSAPP_NUMBER = '6281234567890';
 
 // Social Media
 export const SOCIAL_LINKS = {
