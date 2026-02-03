@@ -21,6 +21,8 @@ export default function App() {
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
     const [customerAddr, setCustomerAddr] = useState('');
+    // Restore Order Type Selection
+    const [orderType, setOrderType] = useState('pickup'); // pickup / delivery
     const [payMethod, setPayMethod] = useState('cash');
     const [promoCode, setPromoCode] = useState('');
     const [activeDiscount, setActiveDiscount] = useState(null);
@@ -141,7 +143,7 @@ export default function App() {
                     price: i.price,
                     extras: i.selectedExtras ? JSON.stringify(i.selectedExtras) : null
                 })),
-                order_type: 'online',
+                order_type: orderType,
                 discount: calculateDiscount()
             });
             console.log("Order submitted successfully:", resp.data);
@@ -277,7 +279,12 @@ export default function App() {
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-2 px-1">Alamat Lengkap</label>
+                                    <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-4 px-1">Tipe Pesanan</label>
+                                    <div className="grid grid-cols-2 gap-4 mb-6">
+                                        <button onClick={() => setOrderType('pickup')} className={`p-4 rounded-2xl border-2 transition-all font-bold ${orderType === 'pickup' ? 'border-amber-600 bg-amber-600/10 text-amber-500' : 'border-stone-800 bg-stone-950 text-stone-500'}`}>🛍️ Ambil Sendiri</button>
+                                        <button onClick={() => setOrderType('delivery')} className={`p-4 rounded-2xl border-2 transition-all font-bold ${orderType === 'delivery' ? 'border-amber-600 bg-amber-600/10 text-amber-500' : 'border-stone-800 bg-stone-950 text-stone-500'}`}>🛵 Delivery</button>
+                                    </div>
+                                    <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-2 px-1">{orderType === 'delivery' ? 'Alamat Pengiriman' : 'Catatan Tambahan (Opsional)'}</label>
                                     <textarea value={customerAddr} onChange={(e) => setCustomerAddr(e.target.value)} className="w-full bg-stone-950 border border-stone-800 p-4 rounded-2xl h-24 outline-none focus:border-amber-500" placeholder="Alamat pengiriman..."></textarea>
                                 </div>
                                 <div>
