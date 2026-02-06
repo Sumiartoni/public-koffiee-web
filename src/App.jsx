@@ -488,8 +488,8 @@ export default function App() {
                                     <div className="w-12 h-12 bg-stone-900 rounded-xl flex items-center justify-center text-amber-500"><MapPin /></div>
                                     <div>
                                         <p className="text-[10px] font-black text-stone-500 uppercase tracking-widest">Lokasi Pickup</p>
-                                        <p className="font-bold text-sm text-white">Public Koffiee Store</p>
-                                        <p className="text-xs text-stone-500">Jl. Kopi Premium No. 88, Jakarta Selatan</p>
+                                        <p className="font-bold text-sm text-white">Public Koffiee</p>
+                                        <p className="text-xs text-stone-500">Desa Gayam Kec Panggul Kab Trenggalek</p>
                                     </div>
                                 </div>
                             )}
