@@ -615,31 +615,6 @@ export default function App() {
                                 </div>
                             </div>
 
-                            {/* CAPTCHA Verification */}
-                            <div className="bg-stone-950 border border-stone-800 p-6 rounded-2xl mt-6">
-                                <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-3 px-1">Verifikasi Keamanan <span className="text-red-500">*</span></label>
-                                <p className="text-sm font-bold mb-3">Berapa hasil dari: <span className="text-amber-500 text-xl">{captchaQuestion.num1} + {captchaQuestion.num2}</span> ?</p>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="number"
-                                        value={captchaAnswer}
-                                        onChange={(e) => {
-                                            setCaptchaAnswer(e.target.value);
-                                            setCaptchaError('');
-                                        }}
-                                        className={`flex-1 bg-stone-900 border p-4 rounded-2xl outline-none text-center text-xl font-black ${captchaError ? 'border-red-500' : 'border-stone-700 focus:border-amber-500'}`}
-                                        placeholder="?"
-                                    />
-                                    <button
-                                        onClick={generateCaptcha}
-                                        className="bg-stone-800 hover:bg-stone-700 px-4 rounded-2xl text-stone-400 text-sm"
-                                        title="Refresh Captcha"
-                                    >
-                                        🔄
-                                    </button>
-                                </div>
-                                {captchaError && <p className="text-red-500 text-[10px] mt-2 px-1">{captchaError}</p>}
-                            </div>
 
                             <button onClick={submitOrder} className="w-full bg-amber-600 text-stone-950 py-5 rounded-[2rem] font-black text-xl italic hover:bg-amber-500 transition-all shadow-xl shadow-amber-900/20 mt-6">PESAN SEKARANG</button>
                             <button onClick={() => setView('menu')} className="w-full text-stone-500 font-bold py-2 hover:text-stone-300 uppercase text-[10px] tracking-widest">Kembali ke Menu</button>
