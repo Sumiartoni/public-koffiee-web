@@ -29,6 +29,11 @@ export default function App() {
     const [activePromos, setActivePromos] = useState([]);
     const [availableDiscounts, setAvailableDiscounts] = useState([]);
 
+    // Validation states
+    const [nameError, setNameError] = useState('');
+    const [phoneError, setPhoneError] = useState('');
+    const [addrError, setAddrError] = useState('');
+
     useEffect(() => {
         fetchData();
         if (window.location.pathname === '/download') setView('download');
@@ -75,6 +80,56 @@ export default function App() {
         setLoading(false);
         console.log('🏁 Data fetching complete');
     };
+
+    // ============================================
+    // SECURITY: Validation Helpers
+    // ============================================
+
+    const validateName = (name) => {
+        if (!name || name.trim().length === 0) {
+            return 'Nama harus diisi';
+        }
+        if (name.trim().length < 3) {
+            return 'Nama minimal 3 karakter';
+        }
+        if (/^\d+$/.test(name.trim())) {
+            return 'Nama tidak boleh hanya angka';
+        }
+        if (/^[\s]+$/.test(name)) {
+            return 'Nama tidak boleh hanya spasi';
+        }
+        return '';
+    };
+
+    const validatePhone = (phone) => {
+        if (!phone || phone.trim().length === 0) {
+            return 'Nomor WhatsApp harus diisi';
+        }
+        const digitsOnly = phone.replace(/\D/g, '');
+        if (digitsOnly.length < 10) {
+            return 'Nomor WhatsApp minimal 10 digit';
+        }
+        if (digitsOnly.length > 13) {
+            return 'Nomor WhatsApp maksimal 13 digit';
+        }
+        if (!phone.trim().startsWith('08') && !phone.trim().startsWith('628') && !phone.trim().startsWith('+628')) {
+            return 'Nomor harus dimulai dengan 08 atau 628';
+        }
+        return '';
+    };
+
+    const validateAddr = (addr, type) => {
+        if (type !== 'delivery') return '';
+        if (!addr || addr.trim().length === 0) {
+            return 'Alamat pengiriman harus diisi';
+        }
+        if (addr.trim().length < 10) {
+            return 'Alamat terlalu pendek (minimal 10 karakter)';
+        }
+        return '';
+    };
+
+
 
     const calculateSubtotal = () => cart.reduce((a, b) => a + (b.price * b.quantity), 0);
 
@@ -190,20 +245,39 @@ export default function App() {
     };
 
     const submitOrder = async () => {
-        if (!customerName || !customerPhone) return alert("Mohon isi Nama dan No. WhatsApp.");
-        if (orderType === 'delivery' && (!customerAddr || customerAddr.length < 5)) return alert("Mohon isi alamat pengiriman lengkap.");
+        // Clear previous errors
+        setNameError('');
+        setPhoneError('');
+        setAddrError('');
+
+        // Validate all inputs
+        const nameErr = validateName(customerName);
+        const phoneErr = validatePhone(customerPhone);
+        const addrErr = validateAddr(customerAddr, orderType);
+
+        if (nameErr) {
+            setNameError(nameErr);
+            return alert(nameErr);
+        }
+        if (phoneErr) {
+            setPhoneError(phoneErr);
+            return alert(phoneErr);
+        }
+        if (addrErr) {
+            setAddrError(addrErr);
+            return alert(addrErr);
+        }
+
 
         try {
             console.log("Submitting order...", { customerName, cart });
             const resp = await axios.post(`${API_URL}/orders`, {
-                customer_name: customerName,
-                customer_phone: customerPhone,
-                address: customerAddr,
+                customer_name: customerName.trim(),
+                customer_phone: customerPhone.trim(),
+                address: customerAddr.trim(),
                 payment_method: payMethod,
-                order_type: orderType, // Kirim 'delivery' atau 'pickup'
-                // Tapi kirim info delivery/pickup di notes atau field khusus jika backend support varian online
-                notes: `Tipper: ${orderType.toUpperCase()}`,
-                address: orderType === 'delivery' ? customerAddr : 'PICKUP AT STORE',
+                order_type: orderType,
+                notes: `Type: ${orderType.toUpperCase()}`,
                 items: cart.map(i => ({
                     menu_item_id: i.id,
                     quantity: i.quantity,
@@ -218,7 +292,17 @@ export default function App() {
             setCartOpen(false);
             setView('success');
         } catch (err) {
-            alert("Sepertinya ada gangguan koneksi ke server kasir.");
+            console.error("Order submission error:", err);
+            const errorMsg = err.response?.data?.error || err.response?.data?.detail || "Sepertinya ada gangguan koneksi ke server kasir.";
+            alert(errorMsg);
+
+            // If rate limited, show specific message
+            if (err.response?.status === 429) {
+                const resetIn = err.response?.data?.resetIn;
+                if (resetIn) {
+                    alert(`Anda telah membuat terlalu banyak pesanan. Silakan tunggu ${Math.ceil(resetIn / 60)} menit.`);
+                }
+            }
         }
     };
 
@@ -418,12 +502,36 @@ export default function App() {
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-2 px-1">Nama Customer</label>
-                                    <input type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="w-full bg-stone-950 border border-stone-800 p-4 rounded-2xl outline-none focus:border-amber-500" placeholder="John Doe" />
+                                    <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-2 px-1">Nama Customer <span className="text-red-500">*</span></label>
+                                    <input
+                                        type="text"
+                                        value={customerName}
+                                        onChange={(e) => {
+                                            setCustomerName(e.target.value);
+                                            setNameError('');
+                                        }}
+                                        onBlur={() => setNameError(validateName(customerName))}
+                                        className={`w-full bg-stone-950 border p-4 rounded-2xl outline-none ${nameError ? 'border-red-500 focus:border-red-500' : 'border-stone-800 focus:border-amber-500'}`}
+                                        placeholder="Masukkan nama"
+                                    />
+                                    {nameError && <p className="text-red-500 text-[10px] mt-1 px-1">{nameError}</p>}
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-2 px-1">No. WhatsApp</label>
-                                    <input type="text" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="w-full bg-stone-950 border border-stone-800 p-4 rounded-2xl outline-none focus:border-amber-500" placeholder="0812XXX" />
+                                    <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-2 px-1">No. WhatsApp <span className="text-red-500">*</span></label>
+                                    <input
+                                        type="text"
+                                        value={customerPhone}
+                                        onChange={(e) => {
+                                            const value = e.target.value.replace(/[^0-9+]/g, '');
+                                            setCustomerPhone(value);
+                                            setPhoneError('');
+                                        }}
+                                        onBlur={() => setPhoneError(validatePhone(customerPhone))}
+                                        className={`w-full bg-stone-950 border p-4 rounded-2xl outline-none ${phoneError ? 'border-red-500 focus:border-red-500' : 'border-stone-800 focus:border-amber-500'}`}
+                                        placeholder="Masukkan nomor whatsapp"
+                                        maxLength="13"
+                                    />
+                                    {phoneError && <p className="text-red-500 text-[10px] mt-1 px-1">{phoneError}</p>}
                                 </div>
                             </div>
 
@@ -463,10 +571,15 @@ export default function App() {
                                     </div>
                                     <textarea
                                         value={customerAddr}
-                                        onChange={(e) => setCustomerAddr(e.target.value)}
-                                        className="w-full bg-stone-950 border border-stone-800 p-4 rounded-2xl h-24 outline-none focus:border-amber-500 mb-2 text-xs font-mono"
-                                        placeholder="Klik tombol GPS atau ketik alamat..."
+                                        onChange={(e) => {
+                                            setCustomerAddr(e.target.value);
+                                            setAddrError('');
+                                        }}
+                                        onBlur={() => setAddrError(validateAddr(customerAddr, orderType))}
+                                        className={`w-full bg-stone-950 border p-4 rounded-2xl h-24 outline-none mb-2 text-xs font-mono ${addrError ? 'border-red-500 focus:border-red-500' : 'border-stone-800 focus:border-amber-500'}`}
+                                        placeholder="Klik tombol GPS atau ketik alamat (minimal 10 karakter)..."
                                     ></textarea>
+                                    {addrError && <p className="text-red-500 text-[10px] mb-2 px-1">{addrError}</p>}
                                     <p className="text-[10px] text-stone-600 pb-2">*Gunakan tombol GPS agar kurir mendapat titik akurat.</p>
 
                                     {/* MAPS PREVIEW/EMBED */}
@@ -501,6 +614,33 @@ export default function App() {
                                     <button onClick={() => setPayMethod('qris')} className={`p-4 rounded-2xl border-2 transition-all font-bold ${payMethod === 'qris' ? 'border-amber-600 bg-amber-600/10 text-amber-500' : 'border-stone-800 bg-stone-950'}`}>📱 QRIS (Otomatis)</button>
                                 </div>
                             </div>
+
+                            {/* CAPTCHA Verification */}
+                            <div className="bg-stone-950 border border-stone-800 p-6 rounded-2xl mt-6">
+                                <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest block mb-3 px-1">Verifikasi Keamanan <span className="text-red-500">*</span></label>
+                                <p className="text-sm font-bold mb-3">Berapa hasil dari: <span className="text-amber-500 text-xl">{captchaQuestion.num1} + {captchaQuestion.num2}</span> ?</p>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="number"
+                                        value={captchaAnswer}
+                                        onChange={(e) => {
+                                            setCaptchaAnswer(e.target.value);
+                                            setCaptchaError('');
+                                        }}
+                                        className={`flex-1 bg-stone-900 border p-4 rounded-2xl outline-none text-center text-xl font-black ${captchaError ? 'border-red-500' : 'border-stone-700 focus:border-amber-500'}`}
+                                        placeholder="?"
+                                    />
+                                    <button
+                                        onClick={generateCaptcha}
+                                        className="bg-stone-800 hover:bg-stone-700 px-4 rounded-2xl text-stone-400 text-sm"
+                                        title="Refresh Captcha"
+                                    >
+                                        🔄
+                                    </button>
+                                </div>
+                                {captchaError && <p className="text-red-500 text-[10px] mt-2 px-1">{captchaError}</p>}
+                            </div>
+
                             <button onClick={submitOrder} className="w-full bg-amber-600 text-stone-950 py-5 rounded-[2rem] font-black text-xl italic hover:bg-amber-500 transition-all shadow-xl shadow-amber-900/20 mt-6">PESAN SEKARANG</button>
                             <button onClick={() => setView('menu')} className="w-full text-stone-500 font-bold py-2 hover:text-stone-300 uppercase text-[10px] tracking-widest">Kembali ke Menu</button>
                         </div>
