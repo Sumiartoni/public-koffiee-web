@@ -722,7 +722,52 @@ export default function App() {
                             <h3 className="text-2xl font-black text-center mb-2">{qtyModal.item.name}</h3>
                             <p className="text-amber-500 font-black text-center mb-8 text-xl italic">Rp {qtyModal.item.price.toLocaleString()}</p>
 
-                            {qtyModal.item.extras?.length > 0 && (
+                            {/* Extra Categories */}
+                            {qtyModal.item.extra_categories?.length > 0 ? (
+                                <div className="mb-8 space-y-6">
+                                    {qtyModal.item.extra_categories.map(cat => (
+                                        <div key={cat.id}>
+                                            <p className="text-[10px] font-black uppercase text-stone-500 mb-3 border-b border-stone-800 pb-2 flex items-center justify-between">
+                                                <span>{cat.name}</span>
+                                                <span className="text-[8px] text-stone-600 font-bold normal-case">
+                                                    {cat.is_required ? 'Wajib' : 'Opsional'} • Max {cat.max_select}
+                                                </span>
+                                            </p>
+                                            <div className="space-y-2">
+                                                {cat.extras?.map(extra => {
+                                                    const isSelected = (qtyModal.selectedExtras || []).some(e => e.id === extra.id);
+                                                    // Count how many extras from this category are selected
+                                                    const selectedInCat = (qtyModal.selectedExtras || []).filter(e => cat.extras.some(ce => ce.id === e.id)).length;
+                                                    const canSelect = !isSelected && selectedInCat >= cat.max_select;
+                                                    return (
+                                                        <button
+                                                            key={extra.id}
+                                                            disabled={canSelect}
+                                                            onClick={() => {
+                                                                const current = qtyModal.selectedExtras || [];
+                                                                if (isSelected) {
+                                                                    setQtyModal({ ...qtyModal, selectedExtras: current.filter(e => e.id !== extra.id) });
+                                                                } else if (cat.max_select === 1) {
+                                                                    // Radio mode: deselect others in same category
+                                                                    const otherCatIds = cat.extras.map(e => e.id);
+                                                                    const filtered = current.filter(e => !otherCatIds.includes(e.id));
+                                                                    setQtyModal({ ...qtyModal, selectedExtras: [...filtered, extra] });
+                                                                } else {
+                                                                    setQtyModal({ ...qtyModal, selectedExtras: [...current, extra] });
+                                                                }
+                                                            }}
+                                                            className={`w-full flex justify-between items-center p-4 rounded-2xl border transition-all ${canSelect ? 'opacity-30 cursor-not-allowed bg-stone-950 border-stone-800' : isSelected ? 'bg-amber-600 border-amber-500 text-stone-950 font-bold' : 'bg-stone-950 border-stone-800 text-stone-400'}`}
+                                                        >
+                                                            <span className="text-sm">{extra.name}</span>
+                                                            <span className="text-xs italic">{extra.price > 0 ? `+ Rp ${extra.price.toLocaleString()}` : 'Gratis'}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : qtyModal.item.extras?.length > 0 && (
                                 <div className="mb-8">
                                     <p className="text-[10px] font-black uppercase text-stone-500 mb-4 border-b border-stone-800 pb-2">Pilih Extra</p>
                                     <div className="space-y-2">
